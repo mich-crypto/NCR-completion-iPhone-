@@ -1,8 +1,8 @@
-// Parsers for the two file uploads this app supports (NCR number list and
-// Parts catalogue). Same forgiving column matching as the desktop tool this
-// is modeled on, so the exact same files you already use there can be
-// uploaded here unchanged: header row doesn't have to be row 1, column
-// names are matched case/whitespace-insensitively.
+// Parsers for the file uploads/syncs this app supports (NCR number list,
+// Parts catalogue, Status templates). Same forgiving column matching as the
+// desktop tool this is modeled on, so the exact same files you already use
+// there can be uploaded here unchanged: header row doesn't have to be row
+// 1, column names are matched case/whitespace-insensitively.
 
 // NCR number list: { number, title, location, description } rows.
 // Description is optional; Number/Title/Location are required.
@@ -118,4 +118,47 @@ async function parsePartsXlsxFile(file) {
       rds: String(row[rdsIdx] || "").trim(),
     }))
     .filter((r) => r.part || r.desc);
+}
+
+// Parses an uploaded/synced Status-templates file (CSV or Excel) into
+// { name, text } rows -- same shape as what "Save as template" on the
+// Completion tab writes. Columns: Name, Text.
+async function parseStatusTemplatesFile(file) {
+  const isCsv = /\.csv$/i.test(file.name);
+  const workbook = isCsv
+    ? XLSX.read(await file.text(), { type: "string" })
+    : XLSX.read(await file.arrayBuffer(), { type: "array" });
+
+  let headerRowIdx = -1, nameIdx = -1, textIdx = -1, data = null;
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+    if (sheetData.length === 0) continue;
+
+    for (let r = 0; r < Math.min(sheetData.length, 10); r++) {
+      const header = sheetData[r].map(normalizeHeader);
+      const n = findColumnIndex(header, ["name"]);
+      const t = findColumnIndex(header, ["text"]);
+      if (n !== -1 && t !== -1) {
+        headerRowIdx = r; nameIdx = n; textIdx = t;
+        data = sheetData;
+        break;
+      }
+    }
+    if (data) break;
+  }
+
+  if (!data) {
+    const firstSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false });
+    const seenHeaders = (firstSheetData[0] || []).map((h) => String(h || "").trim()).filter(Boolean);
+    throw new Error(`Could not find columns named Name and Text. First row has: ${seenHeaders.length ? seenHeaders.join(", ") : "(empty)"}`);
+  }
+
+  return data.slice(headerRowIdx + 1)
+    .map((row) => ({
+      name: String(row[nameIdx] || "").trim(),
+      text: String(row[textIdx] || "").trim(),
+    }))
+    .filter((r) => r.name);
 }

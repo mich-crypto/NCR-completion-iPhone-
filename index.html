@@ -173,6 +173,21 @@
         </div>
       </section>
 
+      <section class="card">
+        <div class="card-body">
+          <h3>Status templates</h3>
+          <p class="hint">CSV or Excel with columns <strong>Name</strong>, <strong>Text</strong>. Uploading or syncing <strong>replaces</strong> all saved templates — templates created with "Save as template" on the Completion tab stay local until you save them into this file too.</p>
+          <p id="statusTemplatesVersion" class="version-line">No status templates saved yet.</p>
+          <div class="input-row">
+            <input id="statusTemplatesFileInput" type="file" accept=".csv,.xlsx,.xlsm,.xls" />
+            <button id="statusTemplatesUploadBtn" class="btn btn-accent" type="button">Upload</button>
+          </div>
+          <p id="statusTemplatesUploadStatus" class="hint mono"></p>
+          <p class="hint">Or pull the shared templates from GitHub — edit <code>data/status-templates.csv</code> in the repo and tap this on any device to match it.</p>
+          <button id="statusTemplatesSyncBtn" class="btn btn-ghost" type="button">Sync from GitHub</button>
+        </div>
+      </section>
+
       <p class="hint" style="text-align:center;">Everything on this tab is saved only on this device — uploading here on your laptop won't show up on your phone (and vice versa) unless you upload it again on that device too.</p>
     </div>
   </main>

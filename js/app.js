@@ -265,6 +265,15 @@ function renderStatusTemplateOptions() {
   els.statusTemplateSelect.innerHTML = `<option value="">-- Load a saved status --</option>` +
     templates.map((t) => `<option value="${escapeHtmlAttr(t.name)}">${escapeHtmlAttr(t.name)}</option>`).join("");
   if (templates.some((t) => t.name === current)) els.statusTemplateSelect.value = current;
+
+  // Settings tab's version line -- kept in sync here so every place that
+  // already calls this (save/delete/init) updates it for free.
+  const versionEl = document.getElementById("statusTemplatesVersion");
+  if (versionEl) {
+    versionEl.textContent = templates.length
+      ? `${templates.length} status template${templates.length === 1 ? "" : "s"} saved.`
+      : "No status templates saved yet.";
+  }
 }
 
 els.statusTemplateSelect.addEventListener("change", (e) => {
@@ -325,6 +334,29 @@ els.deleteStatusTemplateBtn.addEventListener("click", () => {
   saveStatusTemplates(getStatusTemplates().filter((t) => t.name !== name));
   renderStatusTemplateOptions();
   els.deleteStatusTemplateBtn.style.display = "none";
+});
+
+document.getElementById("statusTemplatesUploadBtn").addEventListener("click", async () => {
+  const statusEl = document.getElementById("statusTemplatesUploadStatus");
+  const file = document.getElementById("statusTemplatesFileInput").files[0];
+  if (!file) {
+    statusEl.textContent = "Choose a CSV or Excel file first.";
+    return;
+  }
+  statusEl.textContent = "Reading file...";
+  try {
+    const rows = await parseStatusTemplatesFile(file);
+    if (!rows.length) {
+      statusEl.textContent = "No rows found in this file.";
+      return;
+    }
+    saveStatusTemplates(rows);
+    renderStatusTemplateOptions();
+    document.getElementById("statusTemplatesFileInput").value = "";
+    statusEl.textContent = `Uploaded ${rows.length} template(s) from ${file.name}.`;
+  } catch (err) {
+    statusEl.textContent = err.message || "Could not parse this file. Check it is a valid CSV/Excel file with the right columns.";
+  }
 });
 
 // ---------- Preview, send & clear ----------
