@@ -98,12 +98,17 @@ async function copyPlainText(text) {
   return false;
 }
 
+// Deliberately NOT URLSearchParams here: it form-encodes spaces as "+",
+// which is only meant to be decoded back to a space by something parsing
+// application/x-www-form-urlencoded (an HTML form submission). Neither
+// ms-outlook:// nor mailto: do that -- they decode standard percent-encoding
+// only, so a "+" from URLSearchParams shows up literally in the subject
+// line instead of a space. encodeURIComponent() below uses %20 instead,
+// which both actually decode correctly.
 function buildOutlookUrl({ to, subject }) {
-  const params = new URLSearchParams({ to: to.join(","), subject });
-  return `ms-outlook://compose?${params.toString()}`;
+  return `ms-outlook://compose?to=${encodeURIComponent(to.join(","))}&subject=${encodeURIComponent(subject)}`;
 }
 
 function buildMailtoUrl({ to, subject }) {
-  const params = new URLSearchParams({ subject });
-  return `mailto:${to.join(",")}?${params.toString()}`;
+  return `mailto:${to.join(",")}?subject=${encodeURIComponent(subject)}`;
 }
