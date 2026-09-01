@@ -34,36 +34,13 @@
   <nav class="tab-bar">
     <button type="button" class="tab-btn active" data-tab="completion">Completion</button>
     <button type="button" class="tab-btn" data-tab="parts">Parts</button>
+    <button type="button" class="tab-btn" data-tab="settings">Settings</button>
   </nav>
 
   <main>
     <div id="banner" class="banner hidden" role="status"></div>
 
     <div id="tab-completion" class="tab-page">
-
-    <details id="dataPanel" class="card">
-      <summary>NCR list &amp; project contacts</summary>
-      <div class="card-body">
-        <section>
-          <h3>NCR number list</h3>
-          <p class="hint">CSV or Excel with columns <strong>Number</strong>, <strong>Title</strong>, <strong>Location</strong> (Description optional) — the same file you already use in the desktop tool works here unchanged.</p>
-          <p id="ncrListVersion" class="version-line">No NCR number list uploaded yet.</p>
-          <div class="input-row">
-            <input id="ncrListFileInput" type="file" accept=".csv,.xlsx,.xlsm,.xls" />
-            <button id="ncrListUploadBtn" class="btn btn-accent" type="button">Upload</button>
-          </div>
-          <p id="ncrListUploadStatus" class="hint mono"></p>
-          <button id="ncrListClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
-        </section>
-
-        <section>
-          <h3>Projects &amp; recipients</h3>
-          <p class="hint">Warehouse is added on top of the others whenever "Parts required" is selected below.</p>
-          <div id="projectsList"></div>
-          <button id="addProjectBtn" class="btn btn-ghost" type="button">+ Add project</button>
-        </section>
-      </div>
-    </details>
 
     <form id="ncrForm" class="card">
       <div class="card-body">
@@ -80,9 +57,9 @@
           <p id="titleBox" class="version-line">No matching NCR number found yet.</p>
         </div>
 
-        <div class="readonly-field">
+        <div id="descriptionField" class="readonly-field hidden">
           <span class="field-label">Description <span class="hint-inline">(for information — not sent in the email)</span></span>
-          <p id="descriptionBox" class="version-line">No matching NCR number found yet.</p>
+          <p id="descriptionBox" class="version-line"></p>
         </div>
 
         <label>NCR status
@@ -148,6 +125,31 @@
           <div id="partSearchResults"></div>
         </div>
       </section>
+    </div>
+
+    <div id="tab-settings" class="tab-page hidden">
+      <section class="card">
+        <div class="card-body">
+          <h2>Projects &amp; recipients</h2>
+          <p class="hint">Warehouse is added on top of the others whenever "Parts required" is selected on the Completion tab.</p>
+          <div id="projectsList"></div>
+          <button id="addProjectBtn" class="btn btn-ghost" type="button">+ Add project</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-body">
+          <h3>NCR number list</h3>
+          <p class="hint">CSV or Excel with columns <strong>Number</strong>, <strong>Title</strong>, <strong>Location</strong> (Description optional) — the same file you already use in the desktop tool works here unchanged.</p>
+          <p id="ncrListVersion" class="version-line">No NCR number list uploaded yet.</p>
+          <div class="input-row">
+            <input id="ncrListFileInput" type="file" accept=".csv,.xlsx,.xlsm,.xls" />
+            <button id="ncrListUploadBtn" class="btn btn-accent" type="button">Upload</button>
+          </div>
+          <p id="ncrListUploadStatus" class="hint mono"></p>
+          <button id="ncrListClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
+        </div>
+      </section>
 
       <section class="card">
         <div class="card-body">
@@ -162,6 +164,8 @@
           <button id="partsClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
         </div>
       </section>
+
+      <p class="hint" style="text-align:center;">Everything on this tab is saved only on this device — uploading here on your laptop won't show up on your phone (and vice versa) unless you upload it again on that device too.</p>
     </div>
   </main>
 

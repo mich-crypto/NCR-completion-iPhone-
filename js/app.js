@@ -16,6 +16,7 @@ const els = {
   turbineLocation: document.getElementById("turbineLocation"),
   ncrNumber: document.getElementById("ncrNumber"),
   titleBox: document.getElementById("titleBox"),
+  descriptionField: document.getElementById("descriptionField"),
   descriptionBox: document.getElementById("descriptionBox"),
   ncrStatus: document.getElementById("ncrStatus"),
   status: document.getElementById("status"),
@@ -180,7 +181,7 @@ function lookupNcrNumber() {
   const typed = els.ncrNumber.value.trim().toLowerCase();
   if (!typed) {
     els.titleBox.textContent = "No matching NCR number found yet.";
-    els.descriptionBox.textContent = "No matching NCR number found yet.";
+    els.descriptionField.classList.add("hidden");
     updatePreview();
     return;
   }
@@ -188,10 +189,17 @@ function lookupNcrNumber() {
   if (match) {
     els.turbineLocation.value = match.location;
     els.titleBox.textContent = match.title || "(no title in the uploaded list)";
-    els.descriptionBox.textContent = match.description || "No description for this NCR in the uploaded list.";
+    // Description is optional in the uploaded list, and only shown at all
+    // when there's actually something to show -- no placeholder text here.
+    if (match.description) {
+      els.descriptionBox.textContent = match.description;
+      els.descriptionField.classList.remove("hidden");
+    } else {
+      els.descriptionField.classList.add("hidden");
+    }
   } else {
     els.titleBox.textContent = `No entry found for "${els.ncrNumber.value.trim()}" in the uploaded NCR list.`;
-    els.descriptionBox.textContent = `No entry found for "${els.ncrNumber.value.trim()}" in the uploaded NCR list.`;
+    els.descriptionField.classList.add("hidden");
   }
   updatePreview();
 }
@@ -396,7 +404,7 @@ els.clearFormBtn.addEventListener("click", () => {
   els.turbineLocation.value = "";
   els.ncrNumber.value = "";
   els.titleBox.textContent = "No matching NCR number found yet.";
-  els.descriptionBox.textContent = "No matching NCR number found yet.";
+  els.descriptionField.classList.add("hidden");
   els.ncrStatus.selectedIndex = 0;
   els.status.value = "";
   els.statusTemplateSelect.value = "";
@@ -411,13 +419,14 @@ els.clearFormBtn.addEventListener("click", () => {
 
 // ---------- tabs ----------
 
-const tabTitles = { completion: "NCR Completion", parts: "Parts" };
+const tabTitles = { completion: "NCR Completion", parts: "Parts", settings: "Settings" };
 
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
     document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
-    document.getElementById("tab-completion").classList.toggle("hidden", btn.dataset.tab !== "completion");
-    document.getElementById("tab-parts").classList.toggle("hidden", btn.dataset.tab !== "parts");
+    document.querySelectorAll(".tab-page").forEach((page) => {
+      page.classList.toggle("hidden", page.id !== `tab-${btn.dataset.tab}`);
+    });
     document.getElementById("pageTitle").textContent = tabTitles[btn.dataset.tab];
     hideBanner();
   });
