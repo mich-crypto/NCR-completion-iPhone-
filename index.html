@@ -3,88 +3,149 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>NCR Completion Email</title>
-  <meta name="description" content="Generate NCR completion email templates and open them in Outlook" />
+  <title>NCR Completion</title>
+  <meta name="description" content="Generate NCR completion emails and hand them off to Outlook" />
 
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAaElEQVR42mNgIAD83Z7+pxQzkAKoYSHZDqKH5TgdQU/LMRwxEJajOGLQOwAZkKKWGPUD7wBigokSMOoAqjuA2uqHngNG08BoGhhNA6OJcDQRDj8HkNoiGhAHjLaKh23nZHD1DQeqdwwA9UG9PK52HlgAAAAASUVORK5CYII=" />
   <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAACsUlEQVR42u3cwQnDMBAAQVXnr/svIHXEuILkEeJjNQdbgE7zEthrDZ/zeL01q2VghR5iwQ2x4AZZYIOsPGwXpAxsl6IEahehDGzLVwa1pSuD2rKVQW3JyqC2XGVQW6oyqC1TGdSWqBRqC1QGtOUpg9rSlEJtYcqAtiylUFuUMqAtSSnUFqQMaMtRCrXFCGhpImhLUQq1hQhoaSJoy1AKtUUIaAloCWhpP9C/GucG2sU6N9Au1rmBdrHO/Ql05SBAAw000EC7WOcG2sU6N9DPXOyuAzTQQAMNNNBAAw000AZooIEGGmiggQYaaKCBBhpoAzTQQAMNNNBAAw000EADDbQBGmiggQYaaKAfB136cxDQQAMNNNBAAw000EADDTTQQAMNNNBAe4f2Dg000EADDTTQQBuggQYaaKCBBhpooIEGmigDdBAAw000EADDTTQQAMNNNAGaKCBBhpooIEGGmiggQYa6PBl+gQLaKCBBhpooIEGGmiggQYaaKCBBhpo79DeoYEGGmiggQYaaAM00EADDTTQQAMNNNBAAw20ARpooIEGGmiggQYaaKCBBtoADTTQQAMNNNBAAw000EADbYD2TaFvCoEGGmiggQYaaKCBBhpooIEGGmiggQbaO7R3aKCBBhpoAzTQQAMNNNBAAw000AZooA3QQAMNNNBAAw000EAboIEGGmiggQYaaKCBBhpooA3QQAMNNNBAAw000EADDTTQZivQ9wBtgAYaaKCBBhpooIEG2gANNNBAAw000BLQ0pegoVYKM9ACWpoMGmqlMAMtoKXJoKFWCjPQyoGGWinMQCsHGmqlMAOtHGiolcIMtXKYgVYONNRKYYZaOcxQK4cZauUwQ60cZqiVwwy1cpihVg4z2MpBhlpJzGArBxlsJSGDrSRkuJVEDDfE/5oLwadO+7OTse4AAAAASUVORK5CYII=" />
-  <meta name="theme-color" content="#4F46E5" />
+  <meta name="theme-color" content="#0b1012" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="NCR Email" />
+  <meta name="apple-mobile-web-app-title" content="NCR" />
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <header class="topbar">
-    <h1>NCR Completion Email</h1>
+    <div class="brand">
+      <span class="plate">NCR</span>
+      <h1>NCR Completion</h1>
+    </div>
+    <label class="project-picker">
+      <span>Project</span>
+      <select id="activeProject"></select>
+    </label>
   </header>
 
   <main>
     <div id="banner" class="banner hidden" role="status"></div>
 
+    <details id="dataPanel" class="card">
+      <summary>NCR list &amp; project contacts</summary>
+      <div class="card-body">
+        <section>
+          <h3>NCR number list</h3>
+          <p class="hint">CSV or Excel with columns <strong>Number</strong>, <strong>Title</strong>, <strong>Location</strong> (Description optional) — the same file you already use in the desktop tool works here unchanged.</p>
+          <p id="ncrListVersion" class="version-line">No NCR number list uploaded yet.</p>
+          <div class="input-row">
+            <input id="ncrListFileInput" type="file" accept=".csv,.xlsx,.xlsm,.xls" />
+            <button id="ncrListUploadBtn" class="btn btn-accent" type="button">Upload</button>
+          </div>
+          <p id="ncrListUploadStatus" class="hint mono"></p>
+          <button id="ncrListClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
+        </section>
+
+        <section>
+          <h3>Projects &amp; recipients</h3>
+          <p class="hint">Warehouse is added on top of the others whenever "Parts required" is selected below.</p>
+          <div id="projectsList"></div>
+          <button id="addProjectBtn" class="btn btn-ghost" type="button">+ Add project</button>
+        </section>
+      </div>
+    </details>
+
     <form id="ncrForm" class="card">
       <div class="card-body">
-        <label>NCR Number
-          <input id="ncrNumber" type="text" inputmode="text" required placeholder="e.g. NCR-2026-014" />
+        <label>Turbine location
+          <input id="turbineLocation" type="text" placeholder="e.g. T01" />
         </label>
-        <label>NCR Title
-          <input id="ncrTitle" type="text" required placeholder="Short description of the NCR" />
+
+        <label>NCR number <span class="required">*</span>
+          <input id="ncrNumber" type="text" placeholder="e.g. BP2775" />
         </label>
-        <label>Status
-          <select id="status" required>
+
+        <div class="readonly-field">
+          <span class="field-label">Title</span>
+          <p id="titleBox" class="version-line">No matching NCR number found yet.</p>
+        </div>
+
+        <div class="readonly-field">
+          <span class="field-label">Description <span class="hint-inline">(for information — not sent in the email)</span></span>
+          <p id="descriptionBox" class="version-line">No matching NCR number found yet.</p>
+        </div>
+
+        <label>NCR status
+          <select id="ncrStatus">
             <option value="Completed">Completed</option>
             <option value="Updated">Updated</option>
           </select>
         </label>
-        <label>Work Performed
-          <textarea id="workPerformed" rows="6" required placeholder="Describe the work performed to close/update this NCR"></textarea>
-        </label>
 
-        <label>Photos <span class="hint-inline">(reminder list only — Outlook can't be pre-filled with attachments, so add these yourself once it opens)</span>
-          <input id="photoInput" type="file" accept="image/*" multiple capture="environment" />
+        <label>Status
+          <textarea id="status" rows="4" placeholder="Describe what was done / current status..."></textarea>
         </label>
-        <div id="photoGrid" class="photo-grid"></div>
-
-        <label>Recipients
-          <div class="chip-input" id="chipInput">
-            <input id="recipientEntry" type="email" inputmode="email" placeholder="Add an email and press Enter" autocapitalize="off" autocorrect="off" spellcheck="false" />
-          </div>
-        </label>
-        <label class="checkbox-row">
-          <input id="rememberRecipients" type="checkbox" checked />
-          Remember this recipient list as the default for next time
-        </label>
-
-        <label>Subject
-          <input id="subject" type="text" placeholder="Auto-generated from the fields above (editable)" />
-        </label>
-
-        <div class="button-row">
-          <button id="previewBtn" class="btn btn-ghost" type="button">Preview</button>
-          <button id="newBtn" class="btn btn-ghost" type="button">New NCR</button>
+        <div class="input-row">
+          <select id="statusTemplateSelect">
+            <option value="">-- Load a saved status --</option>
+          </select>
+          <button id="deleteStatusTemplateBtn" class="btn btn-danger-outline" type="button" style="display:none;">Delete</button>
         </div>
-        <div class="button-row">
-          <button id="openOutlookBtn" class="btn btn-primary" type="button">Open in Outlook</button>
+        <button id="saveStatusTemplateBtn" class="btn btn-accent" type="button">Save as template</button>
+
+        <label>Parts
+          <select id="partsUsed">
+            <option value="No parts required">No parts required</option>
+            <option value="Parts required">Parts required</option>
+          </select>
+        </label>
+
+        <div id="partsTableWrap" class="hidden">
+          <div id="partsRows"></div>
+          <button id="addPartRowBtn" class="btn btn-ghost" type="button">+ Add part</button>
         </div>
-        <a id="openMailFallback" class="fallback-link" href="#">Outlook didn't open? Try your default Mail app instead</a>
+
+        <button id="emailBtn" class="btn btn-primary action-btn" type="button">
+          <span class="action-icon">✉</span>
+          <span class="action-text">
+            <span class="action-title">Open Outlook &amp; copy table for email</span>
+            <span class="action-sub">Fills in recipients + subject, copies the full table</span>
+          </span>
+        </button>
+        <a id="mailFallback" class="fallback-link" href="#">Outlook didn't open? Try your default Mail app instead</a>
+        <button id="clearFormBtn" class="btn btn-danger-outline" type="button">Clear form</button>
       </div>
     </form>
 
-    <section id="previewSection" class="card hidden">
+    <section class="card">
       <div class="card-body">
         <h2>Preview</h2>
-        <p class="hint">This is the plain-text draft Outlook will open with — Outlook's compose screen doesn't accept a formatted table via a link, only text. Attach the photos below once it opens.</p>
-        <div id="previewTo" class="preview-meta"></div>
-        <div id="previewSubject" class="preview-meta"></div>
-        <pre id="previewBody" class="preview-body"></pre>
+        <p class="hint">This is the table copied to your clipboard — paste it (Cmd/Ctrl+V) into the email body once Outlook opens.</p>
+        <div id="preview" class="preview-body">
+          <p class="preview-empty">Fill in the fields above — the table will appear here automatically.</p>
+        </div>
       </div>
     </section>
   </main>
 
-  <script src="js/config.js"></script>
+  <!-- Modal: name a saved Status template -->
+  <div id="templateModalOverlay" class="modal-overlay hidden">
+    <div class="modal-box">
+      <h3>Save this status</h3>
+      <input id="templateModalInput" type="text" placeholder="Short name, e.g. Re-torqued and inspected" />
+      <div class="modal-actions">
+        <button id="templateModalCancel" class="btn btn-ghost" type="button">Cancel</button>
+        <button id="templateModalConfirm" class="btn btn-accent" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/xlsx-import.js"></script>
   <script src="js/mailto.js"></script>
   <script src="js/app.js"></script>
 </body>

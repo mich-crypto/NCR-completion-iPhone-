@@ -1,244 +1,427 @@
-// UI wiring for the NCR completion email app. Depends on config.js and
-// mailto.js having already loaded (see index.html).
+// UI wiring for the NCR Completion app. Depends on storage.js, xlsx-import.js
+// and mailto.js having already loaded (see index.html).
 
 const els = {
   banner: document.getElementById("banner"),
+  activeProject: document.getElementById("activeProject"),
 
+  ncrListVersion: document.getElementById("ncrListVersion"),
+  ncrListFileInput: document.getElementById("ncrListFileInput"),
+  ncrListUploadBtn: document.getElementById("ncrListUploadBtn"),
+  ncrListUploadStatus: document.getElementById("ncrListUploadStatus"),
+  ncrListClearBtn: document.getElementById("ncrListClearBtn"),
+  projectsList: document.getElementById("projectsList"),
+  addProjectBtn: document.getElementById("addProjectBtn"),
+
+  turbineLocation: document.getElementById("turbineLocation"),
   ncrNumber: document.getElementById("ncrNumber"),
-  ncrTitle: document.getElementById("ncrTitle"),
+  titleBox: document.getElementById("titleBox"),
+  descriptionBox: document.getElementById("descriptionBox"),
+  ncrStatus: document.getElementById("ncrStatus"),
   status: document.getElementById("status"),
-  workPerformed: document.getElementById("workPerformed"),
-  subject: document.getElementById("subject"),
+  statusTemplateSelect: document.getElementById("statusTemplateSelect"),
+  deleteStatusTemplateBtn: document.getElementById("deleteStatusTemplateBtn"),
+  saveStatusTemplateBtn: document.getElementById("saveStatusTemplateBtn"),
+  partsUsed: document.getElementById("partsUsed"),
+  partsTableWrap: document.getElementById("partsTableWrap"),
+  partsRows: document.getElementById("partsRows"),
+  addPartRowBtn: document.getElementById("addPartRowBtn"),
 
-  photoInput: document.getElementById("photoInput"),
-  photoGrid: document.getElementById("photoGrid"),
+  emailBtn: document.getElementById("emailBtn"),
+  mailFallback: document.getElementById("mailFallback"),
+  clearFormBtn: document.getElementById("clearFormBtn"),
+  preview: document.getElementById("preview"),
 
-  chipInput: document.getElementById("chipInput"),
-  recipientEntry: document.getElementById("recipientEntry"),
-  rememberRecipients: document.getElementById("rememberRecipients"),
-
-  previewBtn: document.getElementById("previewBtn"),
-  newBtn: document.getElementById("newBtn"),
-  openOutlookBtn: document.getElementById("openOutlookBtn"),
-  openMailFallback: document.getElementById("openMailFallback"),
-  previewSection: document.getElementById("previewSection"),
-  previewTo: document.getElementById("previewTo"),
-  previewSubject: document.getElementById("previewSubject"),
-  previewBody: document.getElementById("previewBody"),
+  templateModalOverlay: document.getElementById("templateModalOverlay"),
+  templateModalInput: document.getElementById("templateModalInput"),
+  templateModalConfirm: document.getElementById("templateModalConfirm"),
+  templateModalCancel: document.getElementById("templateModalCancel"),
 };
 
 const state = {
-  photos: [], // { name, objectUrl }
-  recipients: [],
-  subjectAuto: true, // true until the user types into the Subject field themselves
+  ncrListCache: [],
+  ncrListCacheByNumber: new Map(),
+  projects: [],
+  parts: [],
 };
-
-// ---------- small helpers ----------
 
 function showBanner(kind, message) {
   els.banner.textContent = message;
   els.banner.className = `banner ${kind}`;
 }
-
 function hideBanner() {
   els.banner.className = "banner hidden";
 }
 
-function looksLikeEmail(value) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+// ---------- NCR list ----------
+
+async function refreshNcrListCache() {
+  state.ncrListCache = await getStoredNcrList();
+  state.ncrListCacheByNumber = new Map(state.ncrListCache.map((r) => [r.number.toLowerCase(), r]));
 }
 
-function autoSubject() {
-  const parts = [];
-  if (els.ncrNumber.value.trim()) parts.push(`NCR ${els.ncrNumber.value.trim()}`);
-  if (els.ncrTitle.value.trim()) parts.push(els.ncrTitle.value.trim());
-  if (els.status.value) parts.push(`[${els.status.value}]`);
-  return parts.join(" - ") || "NCR Completion";
+async function renderNcrListVersion() {
+  const rows = state.ncrListCache;
+  const meta = await getNcrListMeta();
+  if (rows.length && meta) {
+    const when = meta.uploadedAt ? new Date(meta.uploadedAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "unknown date";
+    els.ncrListVersion.textContent = `Loaded: ${meta.filename || "uploaded file"} · ${rows.length} entries · uploaded ${when}`;
+    els.ncrListClearBtn.style.display = "";
+  } else {
+    els.ncrListVersion.textContent = "No NCR number list uploaded yet.";
+    els.ncrListClearBtn.style.display = "none";
+  }
 }
 
-function refreshAutoSubject() {
-  if (state.subjectAuto) els.subject.value = autoSubject();
-}
-
-// ---------- recipients (chip) input ----------
-
-function renderRecipients() {
-  els.chipInput.querySelectorAll(".chip").forEach((chip) => chip.remove());
-  state.recipients.forEach((email, idx) => {
-    const chip = document.createElement("span");
-    chip.className = "chip";
-    chip.textContent = email;
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.setAttribute("aria-label", `Remove ${email}`);
-    remove.addEventListener("click", () => {
-      state.recipients.splice(idx, 1);
-      renderRecipients();
-    });
-    chip.appendChild(remove);
-    els.chipInput.insertBefore(chip, els.recipientEntry);
-  });
-}
-
-function addRecipientFromEntry() {
-  const value = els.recipientEntry.value.trim().replace(/,$/, "");
-  if (!value) return;
-  if (!looksLikeEmail(value)) {
-    showBanner("err", `"${value}" doesn't look like a valid email address.`);
+els.ncrListUploadBtn.addEventListener("click", async () => {
+  const file = els.ncrListFileInput.files[0];
+  if (!file) {
+    els.ncrListUploadStatus.textContent = "Choose a CSV or Excel file first.";
     return;
   }
-  if (!state.recipients.includes(value)) {
-    state.recipients.push(value);
-    renderRecipients();
-  }
-  els.recipientEntry.value = "";
-}
-
-els.recipientEntry.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" || e.key === "," || e.key === "Tab") {
-    if (els.recipientEntry.value.trim()) {
-      e.preventDefault();
-      addRecipientFromEntry();
+  els.ncrListUploadStatus.textContent = "Reading file...";
+  try {
+    const rows = await parseNcrListFile(file);
+    if (!rows.length) {
+      els.ncrListUploadStatus.textContent = "No rows found in this file.";
+      return;
     }
+    await saveNcrListToStorage(rows, { filename: file.name, uploadedAt: new Date().toISOString(), count: rows.length });
+    await refreshNcrListCache();
+    await renderNcrListVersion();
+    els.ncrListFileInput.value = "";
+    els.ncrListUploadStatus.textContent = `Uploaded ${rows.length} entr${rows.length === 1 ? "y" : "ies"} from ${file.name}.`;
+    lookupNcrNumber(); // re-check the currently typed number against the new list
+  } catch (err) {
+    els.ncrListUploadStatus.textContent = err.message || "Could not parse this file.";
   }
 });
-els.recipientEntry.addEventListener("blur", () => {
-  if (els.recipientEntry.value.trim()) addRecipientFromEntry();
+
+els.ncrListClearBtn.addEventListener("click", async () => {
+  if (!confirm("Clear the uploaded NCR number list?")) return;
+  await clearStoredNcrList();
+  await refreshNcrListCache();
+  els.ncrListFileInput.value = "";
+  await renderNcrListVersion();
+  lookupNcrNumber();
 });
 
-// ---------- photos (preview/reminder only -- not attached automatically) ----------
+// ---------- Projects & recipients ----------
 
-function renderPhotos() {
-  els.photoGrid.innerHTML = "";
-  state.photos.forEach((photo, idx) => {
-    const cell = document.createElement("div");
-    cell.className = "photo-thumb";
-    const img = document.createElement("img");
-    img.src = photo.objectUrl;
-    img.alt = photo.name;
-    const remove = document.createElement("button");
-    remove.type = "button";
-    remove.textContent = "×";
-    remove.setAttribute("aria-label", `Remove ${photo.name}`);
-    remove.addEventListener("click", () => {
-      URL.revokeObjectURL(photo.objectUrl);
-      state.photos.splice(idx, 1);
-      renderPhotos();
-    });
-    cell.appendChild(img);
-    cell.appendChild(remove);
-    els.photoGrid.appendChild(cell);
+function renderProjectsPanel() {
+  els.projectsList.innerHTML = "";
+  state.projects.forEach((proj, idx) => {
+    const row = document.createElement("div");
+    row.className = "projects-panel-row";
+    row.innerHTML = `
+      <div class="proj-name-row">
+        <input type="text" class="proj-field" data-idx="${idx}" data-field="name" value="${escapeHtmlAttr(proj.name)}" placeholder="Project name" />
+        <button type="button" class="btn btn-danger-outline remove-project-btn" data-idx="${idx}">Remove</button>
+      </div>
+      <label>LSM emails <input type="text" class="proj-field" data-idx="${idx}" data-field="lsm" value="${escapeHtmlAttr(proj.lsm)}" placeholder="comma or semicolon separated"></label>
+      <label>LSC emails <input type="text" class="proj-field" data-idx="${idx}" data-field="lsc" value="${escapeHtmlAttr(proj.lsc)}" placeholder="comma or semicolon separated"></label>
+      <label>Quality emails <input type="text" class="proj-field" data-idx="${idx}" data-field="quality" value="${escapeHtmlAttr(proj.quality)}" placeholder="comma or semicolon separated"></label>
+      <label>Warehouse emails <input type="text" class="proj-field" data-idx="${idx}" data-field="warehouse" value="${escapeHtmlAttr(proj.warehouse)}" placeholder="comma or semicolon separated"></label>
+    `;
+    els.projectsList.appendChild(row);
   });
 }
 
-els.photoInput.addEventListener("change", () => {
-  const files = Array.from(els.photoInput.files || []);
-  els.photoInput.value = ""; // allow re-selecting the same file later
-  if (!files.length) return;
-  files.forEach((file) => {
-    state.photos.push({ name: file.name, objectUrl: URL.createObjectURL(file) });
+function populateActiveProjectSelect(preserveName) {
+  const names = state.projects.map((p) => p.name);
+  els.activeProject.innerHTML = names.map((n) => `<option value="${escapeHtmlAttr(n)}">${escapeHtmlAttr(n)}</option>`).join("");
+  const want = preserveName && names.includes(preserveName) ? preserveName : (names.includes(getActiveProjectName()) ? getActiveProjectName() : names[0]);
+  if (want) {
+    els.activeProject.value = want;
+    setActiveProjectName(want);
+  }
+}
+
+function commitProjectsFromPanel() {
+  const prevActiveName = els.activeProject.value;
+  const rows = els.projectsList.querySelectorAll(".proj-name-row");
+  const projects = [];
+  rows.forEach((_, idx) => {
+    const proj = { name: "", lsm: "", lsc: "", quality: "", warehouse: "" };
+    els.projectsList.querySelectorAll(`.proj-field[data-idx="${idx}"]`).forEach((input) => {
+      proj[input.dataset.field] = input.value;
+    });
+    proj.name = proj.name.trim() || `Project ${idx + 1}`;
+    projects.push(proj);
   });
-  renderPhotos();
+  state.projects = projects;
+  saveProjects(projects);
+  populateActiveProjectSelect(prevActiveName);
+}
+
+els.projectsList.addEventListener("input", commitProjectsFromPanel);
+
+els.projectsList.addEventListener("click", (e) => {
+  if (!e.target.classList.contains("remove-project-btn")) return;
+  const idx = parseInt(e.target.dataset.idx, 10);
+  state.projects.splice(idx, 1);
+  saveProjects(state.projects);
+  renderProjectsPanel();
+  populateActiveProjectSelect();
 });
 
-// ---------- preview & open in Outlook ----------
+els.addProjectBtn.addEventListener("click", () => {
+  state.projects.push({ name: `Project ${state.projects.length + 1}`, lsm: "", lsc: "", quality: "", warehouse: "" });
+  saveProjects(state.projects);
+  renderProjectsPanel();
+  populateActiveProjectSelect();
+});
 
-function currentFormValues() {
+els.activeProject.addEventListener("change", (e) => setActiveProjectName(e.target.value));
+
+// ---------- NCR number lookup ----------
+
+function lookupNcrNumber() {
+  const typed = els.ncrNumber.value.trim().toLowerCase();
+  if (!typed) {
+    els.titleBox.textContent = "No matching NCR number found yet.";
+    els.descriptionBox.textContent = "No matching NCR number found yet.";
+    updatePreview();
+    return;
+  }
+  const match = state.ncrListCacheByNumber.get(typed);
+  if (match) {
+    els.turbineLocation.value = match.location;
+    els.titleBox.textContent = match.title || "(no title in the uploaded list)";
+    els.descriptionBox.textContent = match.description || "No description for this NCR in the uploaded list.";
+  } else {
+    els.titleBox.textContent = `No entry found for "${els.ncrNumber.value.trim()}" in the uploaded NCR list.`;
+    els.descriptionBox.textContent = `No entry found for "${els.ncrNumber.value.trim()}" in the uploaded NCR list.`;
+  }
+  updatePreview();
+}
+els.ncrNumber.addEventListener("input", lookupNcrNumber);
+
+function getMatchedTitle() {
+  const typed = els.ncrNumber.value.trim().toLowerCase();
+  if (!typed) return "";
+  return state.ncrListCacheByNumber.get(typed)?.title || "";
+}
+
+// ---------- Parts ----------
+
+function renderPartsRows() {
+  els.partsRows.innerHTML = "";
+  state.parts.forEach((row, idx) => {
+    const div = document.createElement("div");
+    div.className = "part-row";
+    div.innerHTML = `
+      <input type="text" class="part-input" data-idx="${idx}" data-field="part" value="${escapeHtmlAttr(row.part)}" placeholder="Part number">
+      <input type="text" class="part-input" data-idx="${idx}" data-field="qty" value="${escapeHtmlAttr(row.qty)}" placeholder="Qty" style="max-width:80px;">
+      <button type="button" class="btn btn-danger-outline remove-part-btn" data-idx="${idx}">✕</button>
+    `;
+    els.partsRows.appendChild(div);
+  });
+}
+
+els.partsRows.addEventListener("input", (e) => {
+  if (!e.target.classList.contains("part-input")) return;
+  const idx = parseInt(e.target.dataset.idx, 10);
+  state.parts[idx][e.target.dataset.field] = e.target.value;
+  updatePreview();
+});
+
+els.partsRows.addEventListener("click", (e) => {
+  if (!e.target.classList.contains("remove-part-btn")) return;
+  const idx = parseInt(e.target.dataset.idx, 10);
+  state.parts.splice(idx, 1);
+  renderPartsRows();
+  updatePreview();
+});
+
+els.addPartRowBtn.addEventListener("click", () => {
+  state.parts.push({ part: "", qty: "" });
+  renderPartsRows();
+});
+
+els.partsUsed.addEventListener("change", () => {
+  const isUsed = els.partsUsed.value === "Parts required";
+  els.partsTableWrap.classList.toggle("hidden", !isUsed);
+  if (isUsed && state.parts.length === 0) {
+    state.parts.push({ part: "", qty: "" });
+    renderPartsRows();
+  }
+  updatePreview();
+});
+
+// ---------- Status templates ----------
+
+function renderStatusTemplateOptions() {
+  const templates = getStatusTemplates();
+  const current = els.statusTemplateSelect.value;
+  els.statusTemplateSelect.innerHTML = `<option value="">-- Load a saved status --</option>` +
+    templates.map((t) => `<option value="${escapeHtmlAttr(t.name)}">${escapeHtmlAttr(t.name)}</option>`).join("");
+  if (templates.some((t) => t.name === current)) els.statusTemplateSelect.value = current;
+}
+
+els.statusTemplateSelect.addEventListener("change", (e) => {
+  if (!e.target.value) {
+    els.deleteStatusTemplateBtn.style.display = "none";
+    return;
+  }
+  const match = getStatusTemplates().find((t) => t.name === e.target.value);
+  if (match) {
+    els.status.value = match.text;
+    updatePreview();
+    els.deleteStatusTemplateBtn.style.display = "";
+  }
+});
+
+els.saveStatusTemplateBtn.addEventListener("click", () => {
+  if (!els.status.value.trim()) {
+    showBanner("err", "Nothing in the Status box to save.");
+    return;
+  }
+  els.templateModalInput.value = "";
+  els.templateModalOverlay.classList.remove("hidden");
+  els.templateModalInput.focus();
+});
+
+function performSaveStatusTemplate() {
+  const name = els.templateModalInput.value.trim();
+  const text = els.status.value.trim();
+  if (!name) {
+    showBanner("err", "Give this status a short name first.");
+    return;
+  }
+  const templates = getStatusTemplates();
+  const idx = templates.findIndex((t) => t.name === name);
+  if (idx !== -1) templates[idx].text = text;
+  else templates.push({ name, text });
+  saveStatusTemplates(templates);
+  renderStatusTemplateOptions();
+  els.statusTemplateSelect.value = name;
+  els.deleteStatusTemplateBtn.style.display = "";
+  els.templateModalOverlay.classList.add("hidden");
+  hideBanner();
+}
+
+els.templateModalConfirm.addEventListener("click", performSaveStatusTemplate);
+els.templateModalCancel.addEventListener("click", () => els.templateModalOverlay.classList.add("hidden"));
+els.templateModalInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); performSaveStatusTemplate(); }
+  else if (e.key === "Escape") els.templateModalOverlay.classList.add("hidden");
+});
+els.templateModalOverlay.addEventListener("click", (e) => {
+  if (e.target === els.templateModalOverlay) els.templateModalOverlay.classList.add("hidden");
+});
+
+els.deleteStatusTemplateBtn.addEventListener("click", () => {
+  const name = els.statusTemplateSelect.value;
+  if (!name || !confirm(`Delete the saved status "${name}"?`)) return;
+  saveStatusTemplates(getStatusTemplates().filter((t) => t.name !== name));
+  renderStatusTemplateOptions();
+  els.deleteStatusTemplateBtn.style.display = "none";
+});
+
+// ---------- Preview, send & clear ----------
+
+function currentFields() {
   return {
+    turbineLocation: els.turbineLocation.value.trim(),
     ncrNumber: els.ncrNumber.value.trim(),
-    ncrTitle: els.ncrTitle.value.trim(),
-    status: els.status.value,
-    workPerformed: els.workPerformed.value.trim(),
-    subject: els.subject.value.trim() || autoSubject(),
+    ncrTitle: getMatchedTitle(),
+    ncrStatus: els.ncrStatus.value,
+    status: els.status.value.trim(),
+    partsUsed: els.partsUsed.value,
+    parts: state.parts.filter((p) => p.part || p.qty),
   };
 }
 
-function currentDraft() {
-  const values = currentFormValues();
-  const body = buildPlainTextBody({ ...values, photoNames: state.photos.map((p) => p.name) });
-  return { to: state.recipients, subject: values.subject, body };
+function updatePreview() {
+  els.preview.innerHTML = buildTableHtml(currentFields());
 }
 
-function renderPreview() {
-  const draft = currentDraft();
-  els.previewTo.innerHTML = `<strong>To:</strong> ${draft.to.join(", ") || "(no recipients added yet)"}`;
-  els.previewSubject.innerHTML = `<strong>Subject:</strong> ${draft.subject}`;
-  els.previewBody.textContent = draft.body;
-  els.previewSection.classList.remove("hidden");
-  els.previewSection.scrollIntoView({ behavior: "smooth", block: "start" });
+[els.turbineLocation, els.ncrStatus, els.status].forEach((el) => el.addEventListener("input", updatePreview));
+
+function recipientsForCurrentProject() {
+  const activeName = els.activeProject.value;
+  const proj = state.projects.find((p) => p.name === activeName) || { lsm: "", lsc: "", quality: "", warehouse: "" };
+  let list = [...parseEmailList(proj.lsm), ...parseEmailList(proj.lsc), ...parseEmailList(proj.quality)];
+  if (els.partsUsed.value === "Parts required") list = list.concat(parseEmailList(proj.warehouse));
+  // De-dupe while preserving order.
+  return [...new Set(list)];
 }
 
-els.previewBtn.addEventListener("click", renderPreview);
-
-function validateBeforeOpening() {
-  const values = currentFormValues();
-  if (!values.ncrNumber || !values.ncrTitle || !values.workPerformed) {
-    showBanner("err", "NCR Number, NCR Title and Work Performed are required.");
-    return false;
-  }
-  if (!state.recipients.length) {
-    showBanner("err", "Add at least one recipient.");
-    return false;
-  }
-  return true;
-}
-
-function afterHandoff() {
-  hideBanner();
-  if (els.rememberRecipients.checked) NcrRecipients.saveDefault(state.recipients);
-  const msg = state.photos.length
-    ? `Now in Outlook: attach ${state.photos.length} photo(s) and tap Send.`
-    : "Now in Outlook: review and tap Send.";
-  showBanner("ok", msg);
-}
-
-els.openOutlookBtn.addEventListener("click", () => {
-  if (!validateBeforeOpening()) return;
-  const draft = currentDraft();
-  els.openMailFallback.href = buildMailtoUrl(draft);
-  window.location.href = buildOutlookUrl(draft);
-  afterHandoff();
-});
-
-els.openMailFallback.addEventListener("click", (e) => {
-  if (!validateBeforeOpening()) {
-    e.preventDefault();
+els.emailBtn.addEventListener("click", async () => {
+  const fields = currentFields();
+  if (!fields.ncrNumber) {
+    showBanner("err", "NCR number is required.");
     return;
   }
-  els.openMailFallback.href = buildMailtoUrl(currentDraft());
-  afterHandoff();
+  const to = recipientsForCurrentProject();
+  if (!to.length) {
+    showBanner("err", `No recipient emails set for "${els.activeProject.value || "the active project"}" — add them above.`);
+    return;
+  }
+
+  const html = buildTableHtml(fields);
+  const plainText = buildTablePlainText(fields);
+  const subject = buildSubjectText(fields);
+
+  const ok = await copyRichTable(html, plainText);
+  els.mailFallback.href = buildMailtoUrl({ to, subject });
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  window.location.href = buildOutlookUrl({ to, subject });
+
+  showBanner(ok ? "ok" : "err", ok ? "Copied! Opening Outlook — paste (Cmd/Ctrl+V) into the email body." : "Opening Outlook, but copying failed — copy the preview table manually.");
 });
 
-els.newBtn.addEventListener("click", () => {
+els.mailFallback.addEventListener("click", async (e) => {
+  const fields = currentFields();
+  if (!fields.ncrNumber) {
+    e.preventDefault();
+    showBanner("err", "NCR number is required.");
+    return;
+  }
+  const to = recipientsForCurrentProject();
+  if (!to.length) {
+    e.preventDefault();
+    showBanner("err", `No recipient emails set for "${els.activeProject.value || "the active project"}" — add them above.`);
+    return;
+  }
+  await copyRichTable(buildTableHtml(fields), buildTablePlainText(fields));
+  e.target.href = buildMailtoUrl({ to, subject: buildSubjectText(fields) });
+  showBanner("ok", "Copied! Opening Mail — paste (Cmd/Ctrl+V) into the email body.");
+});
+
+els.clearFormBtn.addEventListener("click", () => {
+  if (!confirm("Clear all fields on the Completion form? This cannot be undone.")) return;
+  els.turbineLocation.value = "";
   els.ncrNumber.value = "";
-  els.ncrTitle.value = "";
-  els.status.value = "Completed";
-  els.workPerformed.value = "";
-  els.subject.value = "";
-  state.subjectAuto = true;
-  state.photos.forEach((p) => URL.revokeObjectURL(p.objectUrl));
-  state.photos = [];
-  renderPhotos();
-  els.previewSection.classList.add("hidden");
+  els.titleBox.textContent = "No matching NCR number found yet.";
+  els.descriptionBox.textContent = "No matching NCR number found yet.";
+  els.ncrStatus.selectedIndex = 0;
+  els.status.value = "";
+  els.statusTemplateSelect.value = "";
+  els.deleteStatusTemplateBtn.style.display = "none";
+  els.partsUsed.value = "No parts required";
+  els.partsTableWrap.classList.add("hidden");
+  state.parts = [];
+  renderPartsRows();
   hideBanner();
-  // Recipients intentionally left as-is.
-});
-
-// Keep the subject auto-generated until the user edits it directly.
-[els.ncrNumber, els.ncrTitle, els.status].forEach((el) =>
-  el.addEventListener("input", refreshAutoSubject)
-);
-els.subject.addEventListener("input", () => {
-  state.subjectAuto = false;
+  updatePreview();
 });
 
 // ---------- boot ----------
 
-function init() {
-  state.recipients = NcrRecipients.getDefault();
-  renderRecipients();
-  refreshAutoSubject();
+async function init() {
+  state.projects = getStoredProjects();
+  renderProjectsPanel();
+  populateActiveProjectSelect();
+
+  renderStatusTemplateOptions();
+
+  await refreshNcrListCache();
+  await renderNcrListVersion();
+
+  updatePreview();
 
   if (navigator.serviceWorker) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
