@@ -147,7 +147,11 @@
             <button id="ncrListUploadBtn" class="btn btn-accent" type="button">Upload</button>
           </div>
           <p id="ncrListUploadStatus" class="hint mono"></p>
-          <button id="ncrListClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
+          <p class="hint">Or pull the shared list from GitHub — edit <code>data/ncr-list.csv</code> in the repo and tap this on any device to match it (overwrites what's uploaded here).</p>
+          <div class="input-row">
+            <button id="ncrListSyncBtn" class="btn btn-ghost" type="button">Sync from GitHub</button>
+            <button id="ncrListClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
+          </div>
         </div>
       </section>
 
@@ -161,7 +165,11 @@
             <button id="partsUploadBtn" class="btn btn-accent" type="button">Upload</button>
           </div>
           <p id="partsUploadStatus" class="hint mono"></p>
-          <button id="partsClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
+          <p class="hint">Or pull the shared list from GitHub — edit <code>data/parts.csv</code> in the repo and tap this on any device to match it (overwrites what's uploaded here).</p>
+          <div class="input-row">
+            <button id="partsSyncBtn" class="btn btn-ghost" type="button">Sync from GitHub</button>
+            <button id="partsClearBtn" class="btn btn-danger-outline" type="button" style="display:none;">Clear list</button>
+          </div>
         </div>
       </section>
 
@@ -186,6 +194,7 @@
   <script src="js/xlsx-import.js"></script>
   <script src="js/mailto.js"></script>
   <script src="js/parts.js"></script>
+  <script src="js/repo-sync.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
