@@ -6,13 +6,14 @@
 // updates silently not show up). Network-first always prefers a fresh
 // fetch when there's signal, and only falls back to the cached copy when
 // there genuinely isn't one.
-const CACHE_NAME = "ncr-shell-v6";
+const CACHE_NAME = "ncr-shell-v7";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./manifest.json",
   "./css/style.css",
   "./js/storage.js",
+  "./js/csv-parse.js",
   "./js/xlsx-import.js",
   "./js/mailto.js",
   "./js/parts.js",

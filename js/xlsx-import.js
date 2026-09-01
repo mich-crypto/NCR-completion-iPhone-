@@ -4,11 +4,18 @@
 // there can be uploaded here unchanged: header row doesn't have to be row
 // 1, column names are matched case/whitespace-insensitively.
 
-// NCR number list: { number, title, location, description } rows.
-// Description is optional; Number/Title/Location are required.
-
 function normalizeHeader(h) {
   return String(h || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+// A big catalog (tens of MB) genuinely takes a couple of seconds to parse
+// even with the lightweight CSV path -- this sets that expectation up
+// front instead of the status line just sitting on "Reading file..."
+// looking stuck.
+function readingFileMessage(file) {
+  return file.size > 5 * 1024 * 1024
+    ? "Reading large file — this can take a few seconds, hang on..."
+    : "Reading file...";
 }
 
 function findColumnIndex(header, candidates) {
@@ -23,49 +30,83 @@ function findColumnIndex(header, candidates) {
   return -1;
 }
 
-async function parseNcrListFile(file) {
-  const isCsv = /\.csv$/i.test(file.name);
-  let workbook;
-  if (isCsv) {
-    workbook = XLSX.read(await file.text(), { type: "string" });
-  } else {
-    workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+// Returns [{ name, rows }] -- rows is a plain array-of-arrays of strings,
+// one per sheet. CSV files go through the lightweight parser in
+// csv-parse.js rather than SheetJS: SheetJS's CSV path still builds a full
+// spreadsheet "Sheet" object (one heavyweight cell entry per value) which
+// measured at roughly 10x the source file's size in JS heap for a large
+// catalog export -- enough to freeze the tab for several seconds and, on
+// an iPhone, trip Safari's out-of-memory/unresponsive-page kill (what
+// looked like "the site crashes" on a ~25MB upload). Real .xlsx/.xls/.xlsm
+// files still need SheetJS -- there's no avoiding that for actual Excel
+// binary formats -- so only the CSV path gets the lighter parser.
+async function getSheets(file) {
+  if (/\.csv$/i.test(file.name)) {
+    return [{ name: file.name, rows: parseCsvText(await file.text()) }];
   }
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  return workbook.SheetNames.map((name) => ({
+    name,
+    rows: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: "", raw: false }),
+  }));
+}
 
-  let headerRowIdx = -1, numIdx = -1, titleIdx = -1, locIdx = -1, data = null;
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
-    if (sheetData.length === 0) continue;
-
-    for (let r = 0; r < Math.min(sheetData.length, 10); r++) {
-      const header = sheetData[r].map(normalizeHeader);
-      const n = findColumnIndex(header, ["number", "ncr number"]);
-      const t = findColumnIndex(header, ["title"]);
-      const l = findColumnIndex(header, ["location"]);
-      if (n !== -1 && t !== -1 && l !== -1) {
-        headerRowIdx = r; numIdx = n; titleIdx = t; locIdx = l;
-        data = sheetData;
-        break;
+// Scans each sheet's first 10 rows for one containing every required
+// column (matched via findColumnIndex against normalizeHeader'd cells).
+// `requiredColumns` is [{ key, candidates, blankFirst }] -- `blankFirst`
+// lets a longer column name (e.g. "component description") get matched
+// and excluded before a shorter one (e.g. "component") is searched for,
+// so the short name's substring fallback doesn't match inside the long one.
+// Returns { rows, headerRowIdx, indexes: { key: colIdx } } or null.
+function findHeaderRow(sheets, requiredColumns) {
+  for (const sheet of sheets) {
+    const rows = sheet.rows;
+    for (let r = 0; r < Math.min(rows.length, 10); r++) {
+      let header = rows[r].map(normalizeHeader);
+      const indexes = {};
+      let allFound = true;
+      for (const col of requiredColumns) {
+        const idx = findColumnIndex(header, col.candidates);
+        if (idx === -1) { allFound = false; break; }
+        indexes[col.key] = idx;
+        if (col.blankFirst) header = header.map((h, i) => (i === idx ? "" : h));
       }
+      if (allFound) return { rows, headerRowIdx: r, indexes };
     }
-    if (data) break;
+  }
+  return null;
+}
+
+function firstRowHeadersForError(sheets) {
+  const first = (sheets[0] && sheets[0].rows[0]) || [];
+  const seen = first.map((h) => String(h || "").trim()).filter(Boolean);
+  const sheetNote = sheets.length > 1 ? ` Checked all ${sheets.length} sheets (${sheets.map((s) => s.name).join(", ")}).` : "";
+  return { seenText: seen.length ? seen.join(", ") : "(empty)", sheetNote };
+}
+
+// NCR number list: { number, title, location, description } rows.
+// Description is optional; Number/Title/Location are required.
+async function parseNcrListFile(file) {
+  const sheets = await getSheets(file);
+  const found = findHeaderRow(sheets, [
+    { key: "number", candidates: ["number", "ncr number"] },
+    { key: "title", candidates: ["title"] },
+    { key: "location", candidates: ["location"] },
+  ]);
+
+  if (!found) {
+    const { seenText } = firstRowHeadersForError(sheets);
+    throw new Error(`Could not find columns named Number, Title, and Location. First row has: ${seenText}`);
   }
 
-  if (!data) {
-    const firstSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false });
-    const seenHeaders = (firstSheetData[0] || []).map((h) => String(h || "").trim()).filter(Boolean);
-    throw new Error(`Could not find columns named Number, Title, and Location. First row has: ${seenHeaders.length ? seenHeaders.join(", ") : "(empty)"}`);
-  }
+  const { rows, headerRowIdx, indexes } = found;
+  const descIdx = findColumnIndex(rows[headerRowIdx].map(normalizeHeader), ["description"]);
 
-  const descIdx = findColumnIndex(data[headerRowIdx].map(normalizeHeader), ["description"]);
-
-  return data.slice(headerRowIdx + 1)
+  return rows.slice(headerRowIdx + 1)
     .map((row) => ({
-      number: String(row[numIdx] || "").trim(),
-      title: String(row[titleIdx] || "").trim(),
-      location: String(row[locIdx] || "").trim(),
+      number: String(row[indexes.number] || "").trim(),
+      title: String(row[indexes.title] || "").trim(),
+      location: String(row[indexes.location] || "").trim(),
       description: descIdx !== -1 ? String(row[descIdx] || "").trim() : "",
     }))
     .filter((r) => r.number);
@@ -73,49 +114,26 @@ async function parseNcrListFile(file) {
 
 // Parses an uploaded parts catalogue (CSV or Excel) into { part, desc, rds }
 // rows. Columns: Component, Component description, Rds code -- header row
-// doesn't have to be row 1 or on the first sheet. "Description" is matched
-// (and blanked out) before "Component" so "component" doesn't also match
-// inside "component description" via the fallback substring check.
+// doesn't have to be row 1 or on the first sheet.
 async function parsePartsXlsxFile(file) {
-  const isCsv = /\.csv$/i.test(file.name);
-  const workbook = isCsv
-    ? XLSX.read(await file.text(), { type: "string" })
-    : XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const sheets = await getSheets(file);
+  const found = findHeaderRow(sheets, [
+    { key: "desc", candidates: ["component description", "description"], blankFirst: true },
+    { key: "part", candidates: ["component"] },
+    { key: "rds", candidates: ["rds code", "rds-pp code", "rds-pp", "rdspp", "rds"] },
+  ]);
 
-  let headerRowIdx = -1, partIdx = -1, descIdx = -1, rdsIdx = -1, data = null;
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
-    if (sheetData.length === 0) continue;
-
-    for (let r = 0; r < Math.min(sheetData.length, 10); r++) {
-      const header = sheetData[r].map(normalizeHeader);
-      const d = findColumnIndex(header, ["component description", "description"]);
-      const headerForPart = d === -1 ? header : header.map((h, i) => (i === d ? "" : h));
-      const p = findColumnIndex(headerForPart, ["component"]);
-      const rd = findColumnIndex(header, ["rds code", "rds-pp code", "rds-pp", "rdspp", "rds"]);
-      if (p !== -1 && d !== -1 && rd !== -1) {
-        headerRowIdx = r; partIdx = p; descIdx = d; rdsIdx = rd;
-        data = sheetData;
-        break;
-      }
-    }
-    if (data) break;
+  if (!found) {
+    const { seenText, sheetNote } = firstRowHeadersForError(sheets);
+    throw new Error(`Could not find columns named Component, Component description, and Rds code.${sheetNote} First row has: ${seenText}`);
   }
 
-  if (!data) {
-    const firstSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false });
-    const seenHeaders = (firstSheetData[0] || []).map((h) => String(h || "").trim()).filter(Boolean);
-    const sheetNote = workbook.SheetNames.length > 1 ? ` Checked all ${workbook.SheetNames.length} sheets (${workbook.SheetNames.join(", ")}).` : "";
-    throw new Error(`Could not find columns named Component, Component description, and Rds code.${sheetNote} First row of "${workbook.SheetNames[0]}" has: ${seenHeaders.length ? seenHeaders.join(", ") : "(empty)"}`);
-  }
-
-  return data.slice(headerRowIdx + 1)
+  const { rows, headerRowIdx, indexes } = found;
+  return rows.slice(headerRowIdx + 1)
     .map((row) => ({
-      part: String(row[partIdx] || "").trim(),
-      desc: String(row[descIdx] || "").trim(),
-      rds: String(row[rdsIdx] || "").trim(),
+      part: String(row[indexes.part] || "").trim(),
+      desc: String(row[indexes.desc] || "").trim(),
+      rds: String(row[indexes.rds] || "").trim(),
     }))
     .filter((r) => r.part || r.desc);
 }
@@ -124,41 +142,22 @@ async function parsePartsXlsxFile(file) {
 // { name, text } rows -- same shape as what "Save as template" on the
 // Completion tab writes. Columns: Name, Text.
 async function parseStatusTemplatesFile(file) {
-  const isCsv = /\.csv$/i.test(file.name);
-  const workbook = isCsv
-    ? XLSX.read(await file.text(), { type: "string" })
-    : XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const sheets = await getSheets(file);
+  const found = findHeaderRow(sheets, [
+    { key: "name", candidates: ["name"] },
+    { key: "text", candidates: ["text"] },
+  ]);
 
-  let headerRowIdx = -1, nameIdx = -1, textIdx = -1, data = null;
-
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
-    if (sheetData.length === 0) continue;
-
-    for (let r = 0; r < Math.min(sheetData.length, 10); r++) {
-      const header = sheetData[r].map(normalizeHeader);
-      const n = findColumnIndex(header, ["name"]);
-      const t = findColumnIndex(header, ["text"]);
-      if (n !== -1 && t !== -1) {
-        headerRowIdx = r; nameIdx = n; textIdx = t;
-        data = sheetData;
-        break;
-      }
-    }
-    if (data) break;
+  if (!found) {
+    const { seenText } = firstRowHeadersForError(sheets);
+    throw new Error(`Could not find columns named Name and Text. First row has: ${seenText}`);
   }
 
-  if (!data) {
-    const firstSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false });
-    const seenHeaders = (firstSheetData[0] || []).map((h) => String(h || "").trim()).filter(Boolean);
-    throw new Error(`Could not find columns named Name and Text. First row has: ${seenHeaders.length ? seenHeaders.join(", ") : "(empty)"}`);
-  }
-
-  return data.slice(headerRowIdx + 1)
+  const { rows, headerRowIdx, indexes } = found;
+  return rows.slice(headerRowIdx + 1)
     .map((row) => ({
-      name: String(row[nameIdx] || "").trim(),
-      text: String(row[textIdx] || "").trim(),
+      name: String(row[indexes.name] || "").trim(),
+      text: String(row[indexes.text] || "").trim(),
     }))
     .filter((r) => r.name);
 }

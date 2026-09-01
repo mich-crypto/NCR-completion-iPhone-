@@ -80,7 +80,7 @@ els.ncrListUploadBtn.addEventListener("click", async () => {
     els.ncrListUploadStatus.textContent = "Choose a CSV or Excel file first.";
     return;
   }
-  els.ncrListUploadStatus.textContent = "Reading file...";
+  els.ncrListUploadStatus.textContent = readingFileMessage(file);
   try {
     const rows = await parseNcrListFile(file);
     if (!rows.length) {
@@ -343,7 +343,7 @@ document.getElementById("statusTemplatesUploadBtn").addEventListener("click", as
     statusEl.textContent = "Choose a CSV or Excel file first.";
     return;
   }
-  statusEl.textContent = "Reading file...";
+  statusEl.textContent = readingFileMessage(file);
   try {
     const rows = await parseStatusTemplatesFile(file);
     if (!rows.length) {

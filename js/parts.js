@@ -114,7 +114,7 @@ partsEls.partsUploadBtn.addEventListener("click", async () => {
     partsEls.partsUploadStatus.textContent = "Choose a CSV or Excel file first.";
     return;
   }
-  partsEls.partsUploadStatus.textContent = "Reading file...";
+  partsEls.partsUploadStatus.textContent = readingFileMessage(file);
   try {
     const rows = await parsePartsXlsxFile(file);
     if (!rows.length) {
