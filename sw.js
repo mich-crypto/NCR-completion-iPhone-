@@ -1,7 +1,12 @@
-// Minimal app-shell cache so the form still opens (offline) even with no
-// signal. Opening Outlook/Mail via a URL scheme doesn't need the network
-// itself, so this app is fully usable offline once installed.
-const CACHE_NAME = "ncr-shell-v4";
+// App-shell cache so the form still opens with no signal. Network-first,
+// not cache-first: this app is under active development, and cache-first
+// means a phone that already has it installed keeps serving old files
+// forever unless CACHE_NAME below happens to get bumped on every single
+// change (it didn't, repeatedly -- that's exactly the bug that made
+// updates silently not show up). Network-first always prefers a fresh
+// fetch when there's signal, and only falls back to the cached copy when
+// there genuinely isn't one.
+const CACHE_NAME = "ncr-shell-v5";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -33,6 +38,12 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request))
+    fetch(event.request)
+      .then((response) => {
+        const copy = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
