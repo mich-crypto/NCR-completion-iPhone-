@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>NCR Completion Email</title>
+  <meta name="description" content="Generate NCR completion email templates and open them in Outlook" />
+
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="32x32" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAaElEQVR42mNgIAD83Z7+pxQzkAKoYSHZDqKH5TgdQU/LMRwxEJajOGLQOwAZkKKWGPUD7wBigokSMOoAqjuA2uqHngNG08BoGhhNA6OJcDQRDj8HkNoiGhAHjLaKh23nZHD1DQeqdwwA9UG9PK52HlgAAAAASUVORK5CYII=" />
+  <link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAACsUlEQVR42u3cwQnDMBAAQVXnr/svIHXEuILkEeJjNQdbgE7zEthrDZ/zeL01q2VghR5iwQ2x4AZZYIOsPGwXpAxsl6IEahehDGzLVwa1pSuD2rKVQW3JyqC2XGVQW6oyqC1TGdSWqBRqC1QGtOUpg9rSlEJtYcqAtiylUFuUMqAtSSnUFqQMaMtRCrXFCGhpImhLUQq1hQhoaSJoy1AKtUUIaAloCWhpP9C/GucG2sU6N9Au1rmBdrHO/Ql05SBAAw000EC7WOcG2sU6N9DPXOyuAzTQQAMNNNBAAw000AZooIEGGmiggQYaaKCBBhpoAzTQQAMNNNBAAw000EADDbQBGmiggQYaaKAfB136cxDQQAMNNNBAAw000EADDTTQQAMNNNBAe4f2Dg000EADDTTQQBuggQYaaKCBBhpooIEGmigDdBAAw000EADDTTQQAMNNNAGaKCBBhpooIEGGmiggQYa6PBl+gQLaKCBBhpooIEGGmiggQYaaKCBBhpo79DeoYEGGmiggQYaaAM00EADDTTQQAMNNNBAAw20ARpooIEGGmiggQYaaKCBBtoADTTQQAMNNNBAAw000EADbYD2TaFvCoEGGmiggQYaaKCBBhpooIEGGmiggQbaO7R3aKCBBhpoAzTQQAMNNNBAAw000AZooA3QQAMNNNBAAw000EAboIEGGmiggQYaaKCBBhpooA3QQAMNNNBAAw000EADDTTQZivQ9wBtgAYaaKCBBhpooIEG2gANNNBAAw000BLQ0pegoVYKM9ACWpoMGmqlMAMtoKXJoKFWCjPQyoGGWinMQCsHGmqlMAOtHGiolcIMtXKYgVYONNRKYYZaOcxQK4cZauUwQ60cZqiVwwy1cpihVg4z2MpBhlpJzGArBxlsJSGDrSRkuJVEDDfE/5oLwadO+7OTse4AAAAASUVORK5CYII=" />
+  <meta name="theme-color" content="#4F46E5" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NCR Email" />
+
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>NCR Completion Email</h1>
+  </header>
+
+  <main>
+    <div id="banner" class="banner hidden" role="status"></div>
+
+    <form id="ncrForm" class="card">
+      <div class="card-body">
+        <label>NCR Number
+          <input id="ncrNumber" type="text" inputmode="text" required placeholder="e.g. NCR-2026-014" />
+        </label>
+        <label>NCR Title
+          <input id="ncrTitle" type="text" required placeholder="Short description of the NCR" />
+        </label>
+        <label>Status
+          <select id="status" required>
+            <option value="Completed">Completed</option>
+            <option value="Updated">Updated</option>
+          </select>
+        </label>
+        <label>Work Performed
+          <textarea id="workPerformed" rows="6" required placeholder="Describe the work performed to close/update this NCR"></textarea>
+        </label>
+
+        <label>Photos <span class="hint-inline">(reminder list only — Outlook can't be pre-filled with attachments, so add these yourself once it opens)</span>
+          <input id="photoInput" type="file" accept="image/*" multiple capture="environment" />
+        </label>
+        <div id="photoGrid" class="photo-grid"></div>
+
+        <label>Recipients
+          <div class="chip-input" id="chipInput">
+            <input id="recipientEntry" type="email" inputmode="email" placeholder="Add an email and press Enter" autocapitalize="off" autocorrect="off" spellcheck="false" />
+          </div>
+        </label>
+        <label class="checkbox-row">
+          <input id="rememberRecipients" type="checkbox" checked />
+          Remember this recipient list as the default for next time
+        </label>
+
+        <label>Subject
+          <input id="subject" type="text" placeholder="Auto-generated from the fields above (editable)" />
+        </label>
+
+        <div class="button-row">
+          <button id="previewBtn" class="btn btn-ghost" type="button">Preview</button>
+          <button id="newBtn" class="btn btn-ghost" type="button">New NCR</button>
+        </div>
+        <div class="button-row">
+          <button id="openOutlookBtn" class="btn btn-primary" type="button">Open in Outlook</button>
+        </div>
+        <a id="openMailFallback" class="fallback-link" href="#">Outlook didn't open? Try your default Mail app instead</a>
+      </div>
+    </form>
+
+    <section id="previewSection" class="card hidden">
+      <div class="card-body">
+        <h2>Preview</h2>
+        <p class="hint">This is the plain-text draft Outlook will open with — Outlook's compose screen doesn't accept a formatted table via a link, only text. Attach the photos below once it opens.</p>
+        <div id="previewTo" class="preview-meta"></div>
+        <div id="previewSubject" class="preview-meta"></div>
+        <pre id="previewBody" class="preview-body"></pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/config.js"></script>
+  <script src="js/mailto.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
