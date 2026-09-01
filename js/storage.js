@@ -83,6 +83,76 @@ async function clearStoredNcrList() {
   });
 }
 
+// ---------- Parts catalogue (IndexedDB) ----------
+
+const PARTS_DB_NAME = "ncr_parts_db";
+const PARTS_STORE_NAME = "parts";
+const PARTS_ROWS_KEY = "rows";
+const PARTS_META_KEY = "meta";
+
+function openPartsDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(PARTS_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(PARTS_STORE_NAME)) {
+        req.result.createObjectStore(PARTS_STORE_NAME);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getStoredParts() {
+  try {
+    const db = await openPartsDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(PARTS_STORE_NAME, "readonly");
+      const req = tx.objectStore(PARTS_STORE_NAME).get(PARTS_ROWS_KEY);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return [];
+  }
+}
+
+async function getPartsMeta() {
+  try {
+    const db = await openPartsDB();
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(PARTS_STORE_NAME, "readonly");
+      const req = tx.objectStore(PARTS_STORE_NAME).get(PARTS_META_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function savePartsToStorage(rows, meta) {
+  const db = await openPartsDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PARTS_STORE_NAME, "readwrite");
+    tx.objectStore(PARTS_STORE_NAME).put(rows, PARTS_ROWS_KEY);
+    if (meta) tx.objectStore(PARTS_STORE_NAME).put(meta, PARTS_META_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function clearStoredParts() {
+  const db = await openPartsDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(PARTS_STORE_NAME, "readwrite");
+    tx.objectStore(PARTS_STORE_NAME).delete(PARTS_ROWS_KEY);
+    tx.objectStore(PARTS_STORE_NAME).delete(PARTS_META_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
 // ---------- Projects (localStorage) ----------
 
 // Carried over from the existing desktop tool's defaults -- verify/correct

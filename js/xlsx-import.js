@@ -1,9 +1,11 @@
-// Parses an uploaded CSV/Excel file of NCR numbers into { number, title,
-// location, description } rows. Same forgiving column matching as the
-// desktop tool this is modeled on, so the exact same file you already use
-// there can be uploaded here unchanged: header row doesn't have to be row
-// 1, column names just need to contain "number"/"title"/"location" (case
-// and extra-whitespace insensitive), Description is optional.
+// Parsers for the two file uploads this app supports (NCR number list and
+// Parts catalogue). Same forgiving column matching as the desktop tool this
+// is modeled on, so the exact same files you already use there can be
+// uploaded here unchanged: header row doesn't have to be row 1, column
+// names are matched case/whitespace-insensitively.
+
+// NCR number list: { number, title, location, description } rows.
+// Description is optional; Number/Title/Location are required.
 
 function normalizeHeader(h) {
   return String(h || "").replace(/\s+/g, " ").trim().toLowerCase();
@@ -67,4 +69,50 @@ async function parseNcrListFile(file) {
       description: descIdx !== -1 ? String(row[descIdx] || "").trim() : "",
     }))
     .filter((r) => r.number);
+}
+
+// Parses an uploaded parts catalogue (.xlsx) into { part, desc, rds } rows.
+// Columns: Component, Component description, Rds code -- header row doesn't
+// have to be row 1 or on the first sheet. "Description" is matched (and
+// blanked out) before "Component" so "component" doesn't also match inside
+// "component description" via the fallback substring check.
+async function parsePartsXlsxFile(file) {
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+
+  let headerRowIdx = -1, partIdx = -1, descIdx = -1, rdsIdx = -1, data = null;
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    const sheetData = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "", raw: false });
+    if (sheetData.length === 0) continue;
+
+    for (let r = 0; r < Math.min(sheetData.length, 10); r++) {
+      const header = sheetData[r].map(normalizeHeader);
+      const d = findColumnIndex(header, ["component description", "description"]);
+      const headerForPart = d === -1 ? header : header.map((h, i) => (i === d ? "" : h));
+      const p = findColumnIndex(headerForPart, ["component"]);
+      const rd = findColumnIndex(header, ["rds code", "rds-pp code", "rds-pp", "rdspp", "rds"]);
+      if (p !== -1 && d !== -1 && rd !== -1) {
+        headerRowIdx = r; partIdx = p; descIdx = d; rdsIdx = rd;
+        data = sheetData;
+        break;
+      }
+    }
+    if (data) break;
+  }
+
+  if (!data) {
+    const firstSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: "", raw: false });
+    const seenHeaders = (firstSheetData[0] || []).map((h) => String(h || "").trim()).filter(Boolean);
+    const sheetNote = workbook.SheetNames.length > 1 ? ` Checked all ${workbook.SheetNames.length} sheets (${workbook.SheetNames.join(", ")}).` : "";
+    throw new Error(`Could not find columns named Component, Component description, and Rds code.${sheetNote} First row of "${workbook.SheetNames[0]}" has: ${seenHeaders.length ? seenHeaders.join(", ") : "(empty)"}`);
+  }
+
+  return data.slice(headerRowIdx + 1)
+    .map((row) => ({
+      part: String(row[partIdx] || "").trim(),
+      desc: String(row[descIdx] || "").trim(),
+      rds: String(row[rdsIdx] || "").trim(),
+    }))
+    .filter((r) => r.part || r.desc);
 }

@@ -1,7 +1,7 @@
 // Minimal app-shell cache so the form still opens (offline) even with no
 // signal. Opening Outlook/Mail via a URL scheme doesn't need the network
 // itself, so this app is fully usable offline once installed.
-const CACHE_NAME = "ncr-shell-v3";
+const CACHE_NAME = "ncr-shell-v4";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -10,6 +10,7 @@ const SHELL_FILES = [
   "./js/storage.js",
   "./js/xlsx-import.js",
   "./js/mailto.js",
+  "./js/parts.js",
   "./js/app.js",
 ];
 

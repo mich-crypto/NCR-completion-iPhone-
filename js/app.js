@@ -409,6 +409,20 @@ els.clearFormBtn.addEventListener("click", () => {
   updatePreview();
 });
 
+// ---------- tabs ----------
+
+const tabTitles = { completion: "NCR Completion", parts: "Parts" };
+
+document.querySelectorAll(".tab-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+    document.getElementById("tab-completion").classList.toggle("hidden", btn.dataset.tab !== "completion");
+    document.getElementById("tab-parts").classList.toggle("hidden", btn.dataset.tab !== "parts");
+    document.getElementById("pageTitle").textContent = tabTitles[btn.dataset.tab];
+    hideBanner();
+  });
+});
+
 // ---------- boot ----------
 
 async function init() {
@@ -422,6 +436,8 @@ async function init() {
   await renderNcrListVersion();
 
   updatePreview();
+
+  await initPartsTab();
 
   if (navigator.serviceWorker) {
     navigator.serviceWorker.register("sw.js").catch(() => {});

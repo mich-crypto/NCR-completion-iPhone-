@@ -85,6 +85,19 @@ async function copyRichTable(html, plainText) {
   return false;
 }
 
+// Plain-text-only copy, used by the Parts tab's VMS lookup button.
+async function copyPlainText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (err) {
+      console.warn("Clipboard writeText failed:", err);
+    }
+  }
+  return false;
+}
+
 function buildOutlookUrl({ to, subject }) {
   const params = new URLSearchParams({ to: to.join(","), subject });
   return `ms-outlook://compose?${params.toString()}`;

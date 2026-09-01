@@ -84,10 +84,44 @@ h1, h2, h3 { font-family: "Space Grotesk", "IBM Plex Sans", sans-serif; margin: 
   max-width: 42vw;
 }
 
+.tab-bar {
+  display: flex;
+  gap: 4px;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 10px 16px 0;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid var(--border-soft);
+  border-bottom: none;
+  background: var(--panel-alt);
+  color: var(--text-faint);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab-btn.active {
+  background: var(--panel);
+  color: var(--accent);
+  border-color: var(--border);
+}
+
 main {
   max-width: 640px;
   margin: 0 auto;
   padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tab-page {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -180,6 +214,42 @@ textarea { resize: vertical; font-family: inherit; }
 .btn-accent { background: transparent; color: var(--accent); border-color: var(--accent-dim); }
 .btn-ghost { background: transparent; color: var(--text-dim); border-color: var(--border); }
 .btn-danger-outline { background: transparent; color: var(--danger); border-color: rgba(229, 72, 77, 0.35); }
+
+#partSearchResults { display: flex; flex-direction: column; gap: 8px; }
+
+.result-count, .no-results { font-size: 12px; color: var(--text-faint); margin: 0; }
+.no-results { font-style: italic; padding: 8px 0; }
+
+.part-result {
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--panel-inset);
+}
+
+.part-number {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: "IBM Plex Mono", monospace;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.part-desc { font-size: 13px; color: var(--text-dim); margin-top: 4px; }
+.part-rds { color: var(--text-faint); }
+
+.vms-lookup-btn {
+  border: 1px solid #F2C811;
+  background: rgba(242, 200, 17, 0.12);
+  color: #F2C811;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 3px 9px;
+  cursor: pointer;
+}
 
 .action-btn {
   display: flex;
