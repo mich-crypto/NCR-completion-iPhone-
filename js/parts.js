@@ -111,7 +111,7 @@ partsEls.partSearchInput.addEventListener("input", (e) => renderPartSearchResult
 partsEls.partsUploadBtn.addEventListener("click", async () => {
   const file = partsEls.partsFileInput.files[0];
   if (!file) {
-    partsEls.partsUploadStatus.textContent = "Choose an .xlsx file first.";
+    partsEls.partsUploadStatus.textContent = "Choose a CSV or Excel file first.";
     return;
   }
   partsEls.partsUploadStatus.textContent = "Reading file...";
@@ -127,7 +127,7 @@ partsEls.partsUploadBtn.addEventListener("click", async () => {
     partsEls.partsFileInput.value = "";
     partsEls.partsUploadStatus.textContent = `Uploaded ${rows.length} part(s) from ${file.name}.`;
   } catch (err) {
-    partsEls.partsUploadStatus.textContent = err.message || "Could not parse this file. Check it is a valid .xlsx with the right columns.";
+    partsEls.partsUploadStatus.textContent = err.message || "Could not parse this file. Check it is a valid CSV/Excel file with the right columns.";
   }
 });
 

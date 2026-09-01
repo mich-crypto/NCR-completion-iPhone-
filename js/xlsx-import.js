@@ -71,13 +71,16 @@ async function parseNcrListFile(file) {
     .filter((r) => r.number);
 }
 
-// Parses an uploaded parts catalogue (.xlsx) into { part, desc, rds } rows.
-// Columns: Component, Component description, Rds code -- header row doesn't
-// have to be row 1 or on the first sheet. "Description" is matched (and
-// blanked out) before "Component" so "component" doesn't also match inside
-// "component description" via the fallback substring check.
+// Parses an uploaded parts catalogue (CSV or Excel) into { part, desc, rds }
+// rows. Columns: Component, Component description, Rds code -- header row
+// doesn't have to be row 1 or on the first sheet. "Description" is matched
+// (and blanked out) before "Component" so "component" doesn't also match
+// inside "component description" via the fallback substring check.
 async function parsePartsXlsxFile(file) {
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const isCsv = /\.csv$/i.test(file.name);
+  const workbook = isCsv
+    ? XLSX.read(await file.text(), { type: "string" })
+    : XLSX.read(await file.arrayBuffer(), { type: "array" });
 
   let headerRowIdx = -1, partIdx = -1, descIdx = -1, rdsIdx = -1, data = null;
 
