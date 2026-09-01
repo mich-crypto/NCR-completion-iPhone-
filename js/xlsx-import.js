@@ -30,25 +30,44 @@ function findColumnIndex(header, candidates) {
   return -1;
 }
 
-// Returns [{ name, rows }] -- rows is a plain array-of-arrays of strings,
-// one per sheet. CSV files go through the lightweight parser in
-// csv-parse.js rather than SheetJS: SheetJS's CSV path still builds a full
-// spreadsheet "Sheet" object (one heavyweight cell entry per value) which
-// measured at roughly 10x the source file's size in JS heap for a large
-// catalog export -- enough to freeze the tab for several seconds and, on
-// an iPhone, trip Safari's out-of-memory/unresponsive-page kill (what
-// looked like "the site crashes" on a ~25MB upload). Real .xlsx/.xls/.xlsm
-// files still need SheetJS -- there's no avoiding that for actual Excel
-// binary formats -- so only the CSV path gets the lighter parser.
+// Returns [{ name, rows() }] -- one entry per sheet, `rows()` lazily
+// converts that sheet to a plain array-of-arrays of strings and caches the
+// result, so a workbook with several sheets never converts more than the
+// one that actually matches (converting a big sheet is the expensive part;
+// earlier versions of this file called sheet_to_json on every sheet up
+// front regardless of which one was needed).
+//
+// CSV files go through the lightweight parser in csv-parse.js rather than
+// SheetJS: SheetJS's CSV path still builds a full spreadsheet "Sheet"
+// object (one heavyweight cell entry per value) which measured at roughly
+// 10x the source file's size in JS heap for a large catalog export.
+//
+// Real .xlsx/.xls/.xlsm files still need SheetJS -- there's no avoiding
+// that for actual Excel binary formats -- but read with options that skip
+// work this app never uses: `dense` stores cells as plain nested arrays
+// instead of one JS object per cell address (a documented SheetJS option
+// specifically for large files), and `cellHTML`/`cellFormula` (on by
+// default) skip generating an HTML rendition and parsing formulas for
+// every cell, neither of which anything here reads.
 async function getSheets(file) {
   if (/\.csv$/i.test(file.name)) {
-    return [{ name: file.name, rows: parseCsvText(await file.text()) }];
+    const rows = parseCsvText(await file.text());
+    return [{ name: file.name, rows: () => rows }];
   }
-  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
-  return workbook.SheetNames.map((name) => ({
-    name,
-    rows: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: "", raw: false }),
-  }));
+  const workbook = XLSX.read(await file.arrayBuffer(), {
+    type: "array",
+    dense: true,
+    cellHTML: false,
+    cellFormula: false,
+    sheetStubs: false,
+  });
+  return workbook.SheetNames.map((name) => {
+    let cached = null;
+    return {
+      name,
+      rows: () => cached || (cached = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: "", raw: false })),
+    };
+  });
 }
 
 // Scans each sheet's first 10 rows for one containing every required
@@ -60,7 +79,7 @@ async function getSheets(file) {
 // Returns { rows, headerRowIdx, indexes: { key: colIdx } } or null.
 function findHeaderRow(sheets, requiredColumns) {
   for (const sheet of sheets) {
-    const rows = sheet.rows;
+    const rows = sheet.rows();
     for (let r = 0; r < Math.min(rows.length, 10); r++) {
       let header = rows[r].map(normalizeHeader);
       const indexes = {};
@@ -78,7 +97,7 @@ function findHeaderRow(sheets, requiredColumns) {
 }
 
 function firstRowHeadersForError(sheets) {
-  const first = (sheets[0] && sheets[0].rows[0]) || [];
+  const first = (sheets[0] && sheets[0].rows()[0]) || [];
   const seen = first.map((h) => String(h || "").trim()).filter(Boolean);
   const sheetNote = sheets.length > 1 ? ` Checked all ${sheets.length} sheets (${sheets.map((s) => s.name).join(", ")}).` : "";
   return { seenText: seen.length ? seen.join(", ") : "(empty)", sheetNote };
